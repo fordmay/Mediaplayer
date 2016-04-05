@@ -11,15 +11,12 @@ import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.LinearLayoutManager;
 import android.support.v7.widget.RecyclerView;
 import android.support.v7.widget.SearchView;
-import android.text.Editable;
-import android.text.TextWatcher;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.EditText;
 import android.widget.ImageButton;
 import android.widget.SeekBar;
 import android.widget.TextView;
@@ -28,12 +25,14 @@ import android.widget.Toast;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.Locale;
 
 public class ListOfSongs extends AppCompatActivity {
 
     private static final int UPDATE_FREQUENCY = 500;
-//    private static final int STEP_VALUE = 4000;
+    //    private static final int STEP_VALUE = 4000;
     //adapter
     private RecyclerView.LayoutManager mLayoutManager;
     private RecyclerView mRecyclerView;
@@ -52,11 +51,13 @@ public class ListOfSongs extends AppCompatActivity {
     private ArrayList<String> arrayListAlbum;
     private ArrayList<String> arrayListDuration;
     private ImageButton temporaryMusikImage;
-    private int numberPosition;
+    private int savedNumberForCursor;
     //TextView for player
     private TextView titleIsPlay;
     private TextView artistIsPlay;
     private TextView albumIsPlay;
+    private TextView totalRunningTime;
+    private TextView timePlayed;
 
     private boolean isStarted = true;
     private boolean isMoveingSeekBar = false;
@@ -73,6 +74,8 @@ public class ListOfSongs extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_list_of_songs);
 
+        totalRunningTime = (TextView) findViewById(R.id.total_running_time);
+        timePlayed = (TextView) findViewById(R.id.time_played);
         titleIsPlay = (TextView) findViewById(R.id.title_is_play);
         artistIsPlay = (TextView) findViewById(R.id.artist_is_play);
         albumIsPlay = (TextView) findViewById(R.id.album_is_play);
@@ -84,7 +87,6 @@ public class ListOfSongs extends AppCompatActivity {
 
         mediaPlayer = new MediaPlayer();
 
-        mediaPlayer.setOnCompletionListener(onCompletion);
         mediaPlayer.setOnErrorListener(onError);
         seekbar.setOnSeekBarChangeListener(seekBarChanged);
 
@@ -122,8 +124,7 @@ public class ListOfSongs extends AppCompatActivity {
         mLayoutManager = new LinearLayoutManager(this);
         mRecyclerView.setLayoutManager(mLayoutManager);
         // specify an adapter (see also next example)
-        mAdapter = new MyRecyclerAdapter(arrayListTitle, arrayListArtist, arrayListAlbum,
-                arrayListDuration, R.drawable.ic_play_arrow_black_24dp);
+        mAdapter = new MyRecyclerAdapter(getData());
         mRecyclerView.setAdapter(mAdapter);
 
         //player's buttons
@@ -134,7 +135,7 @@ public class ListOfSongs extends AppCompatActivity {
     }
 
     @Override
-    public boolean onCreateOptionsMenu(Menu menu){
+    public boolean onCreateOptionsMenu(Menu menu) {
         // Inflate the menu; this adds items to the action bar if it is present.
         getMenuInflater().inflate(R.menu.menu_list_of_songs, menu);
 
@@ -154,9 +155,7 @@ public class ListOfSongs extends AppCompatActivity {
                 mAdapter.filter(query);
 
                 return true;
-
             }
-
         });
         return true;
     }
@@ -188,11 +187,12 @@ public class ListOfSongs extends AppCompatActivity {
     }
 
     private void startPlay() {
-        titleIsPlay.setText(arrayListTitle.get(numberPosition));
-        artistIsPlay.setText(arrayListArtist.get(numberPosition));
-        albumIsPlay.setText(arrayListAlbum.get(numberPosition));
+        titleIsPlay.setText(arrayListTitle.get(savedNumberForCursor));
+        artistIsPlay.setText(arrayListArtist.get(savedNumberForCursor));
+        albumIsPlay.setText(arrayListAlbum.get(savedNumberForCursor));
+        totalRunningTime.setText(arrayListDuration.get(savedNumberForCursor));
         seekbar.setProgress(0);
-        cursor.moveToPosition(numberPosition);
+        cursor.moveToPosition(savedNumberForCursor);
         mediaPlayer.stop();
         mediaPlayer.reset();
 
@@ -213,6 +213,7 @@ public class ListOfSongs extends AppCompatActivity {
         playButton.setImageResource(R.drawable.ic_pause_black_24dp);
 
         updatePosition();
+        mAdapter.notifyDataSetChanged();
 
         isStarted = true;
     }
@@ -235,23 +236,28 @@ public class ListOfSongs extends AppCompatActivity {
         handler.postDelayed(updatePositionRunnable, UPDATE_FREQUENCY);
     }
 
-    // The class Adapter extends RecyclerView.Adapter
-    public class MyRecyclerAdapter extends RecyclerView.Adapter<MyRecyclerAdapter.ViewHolder> {
-        private ArrayList<String> dataTitle;
-        private ArrayList<String> cleanCopyDataTitle;
-        private ArrayList<String> dataArtist;
-        private ArrayList<String> dataAlbum;
-        private ArrayList<String> dataDuration;
-        private int imageForList;
+    public List<Information> getData() {
+        List<Information> data = new ArrayList<>();
+        for (int i = 0; i < arrayListTitle.size(); i++) {
+            Information current = new Information();
+            current.title = arrayListTitle.get(i);
+            current.artist = arrayListArtist.get(i);
+            current.album = arrayListAlbum.get(i);
+            current.duration = arrayListDuration.get(i);
+            current.numberForCursor = i;
+            current.image = R.drawable.ic_play_arrow_black_24dp;
+            data.add(current);
+        }
+        return data;
+    }
 
-        public MyRecyclerAdapter(ArrayList<String> arrayDataTitle, ArrayList<String> arrayDataArtist,
-                                 ArrayList<String> arrayDataAlbum, ArrayList<String> arrayDataDuration, int image_for_list) {
-            dataTitle = arrayDataTitle;
-            cleanCopyDataTitle = dataTitle;
-            dataArtist = arrayDataArtist;
-            dataAlbum = arrayDataAlbum;
-            dataDuration = arrayDataDuration;
-            this.imageForList = image_for_list;
+    public class MyRecyclerAdapter extends RecyclerView.Adapter<MyRecyclerAdapter.ViewHolder> {
+        List<Information> data = Collections.emptyList();
+        List<Information> cleanCopyData = Collections.emptyList();
+
+        public MyRecyclerAdapter(List<Information> data) {
+            this.data = data;
+            cleanCopyData = this.data;
         }
 
         @Override
@@ -264,12 +270,17 @@ public class ListOfSongs extends AppCompatActivity {
 
         @Override
         public void onBindViewHolder(final ViewHolder holder, final int position) {
-            holder.title.setText(dataTitle.get(position));
-            holder.album.setText(dataAlbum.get(position));
-            holder.artist.setText(dataArtist.get(position));
-            holder.duration.setText(dataDuration.get(position));
+            final Information current = data.get(position);
+            holder.title.setText(current.title);
+            holder.album.setText(current.album);
+            holder.artist.setText(current.artist);
+            holder.duration.setText(current.duration);
 
-            holder.image_for_list.setImageResource(imageForList);
+            if (current.numberForCursor == savedNumberForCursor && temporaryMusikImage != null) {
+                holder.image_for_list.setImageResource(R.drawable.ic_pause_black_24dp);
+            } else {
+                holder.image_for_list.setImageResource(current.image);
+            }
             holder.image_for_list.setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View v) {
@@ -279,7 +290,7 @@ public class ListOfSongs extends AppCompatActivity {
                     Toast.makeText(ListOfSongs.this, "click:" + position, Toast.LENGTH_SHORT).show();
                     holder.image_for_list.setImageResource(R.drawable.ic_pause_black_24dp);
                     temporaryMusikImage = holder.image_for_list;
-                    numberPosition = position;
+                    savedNumberForCursor = current.numberForCursor;
 
                     startPlay();
                 }
@@ -288,7 +299,7 @@ public class ListOfSongs extends AppCompatActivity {
 
         @Override
         public int getItemCount() {
-            return dataTitle.size();
+            return data.size();
         }
 
         public class ViewHolder extends RecyclerView.ViewHolder {
@@ -305,17 +316,21 @@ public class ListOfSongs extends AppCompatActivity {
                 duration = (TextView) vItem.findViewById(R.id.duration);
                 title = (TextView) vItem.findViewById(R.id.title);
                 image_for_list = (ImageButton) vItem.findViewById(R.id.image_for_list);
+
             }
         }
+
         public void filter(String charText) {
             charText = charText.toLowerCase(Locale.getDefault());
-            dataTitle = new ArrayList<String>();
+            data = new ArrayList<Information>();
             if (charText.length() == 0) {
-                dataTitle.addAll(cleanCopyDataTitle);
+                data.addAll(cleanCopyData);
             } else {
-                for (String item : cleanCopyDataTitle) {
-                    if (item.toLowerCase(Locale.getDefault()).contains(charText)) {
-                        dataTitle.add(item);
+                for (int i = 0; i < cleanCopyData.size(); i++) {
+                    if (arrayListTitle.get(i).toLowerCase(Locale.getDefault()).contains(charText) ||
+                            arrayListAlbum.get(i).toLowerCase(Locale.getDefault()).contains(charText) ||
+                            arrayListArtist.get(i).toLowerCase(Locale.getDefault()).contains(charText)) {
+                        data.add(cleanCopyData.get(i));
                     }
                 }
             }
@@ -327,69 +342,46 @@ public class ListOfSongs extends AppCompatActivity {
 
         @Override
         public void onClick(View v) {
-            switch (v.getId()) {
-                case R.id.play: {
-                    if (mediaPlayer.isPlaying()) {
-                        handler.removeCallbacks(updatePositionRunnable);
-                        mediaPlayer.pause();
-                        playButton.setImageResource(R.drawable.ic_play_arrow_black_24dp);
-                    } else {
-                        if (isStarted) {
-                            mediaPlayer.start();
-                            playButton.setImageResource(R.drawable.ic_pause_black_24dp);
-
-                            updatePosition();
+            if (temporaryMusikImage != null) {
+                switch (v.getId()) {
+                    case R.id.play: {
+                        if (mediaPlayer.isPlaying()) {
+                            handler.removeCallbacks(updatePositionRunnable);
+                            mediaPlayer.pause();
+                            playButton.setImageResource(R.drawable.ic_play_arrow_black_24dp);
                         } else {
-                            startPlay();
+                            if (isStarted) {
+                                mediaPlayer.start();
+                                playButton.setImageResource(R.drawable.ic_pause_black_24dp);
+
+                                updatePosition();
+                            } else {
+                                startPlay();
+                            }
                         }
                     }
+                    break;
 
+                    case R.id.stop: {
+                        stopPlay();
+                    }
                     break;
-                }
-                case R.id.stop: {
-                    mediaPlayer.stop();
-                    playButton.setImageResource(R.drawable.ic_play_arrow_black_24dp);
-                    mediaPlayer.seekTo(0);
-                    isMoveingSeekBar = false;
+                    case R.id.next: {
+                        savedNumberForCursor = savedNumberForCursor + 1;
+                        startPlay();
+                    }
                     break;
-                }
-                case R.id.next: {
-                    numberPosition = numberPosition+1;
-                    startPlay();
-//                    int seekto = mediaPlayer.getCurrentPosition() + STEP_VALUE;
-//
-//                    if (seekto > mediaPlayer.getDuration())
-//                        seekto = mediaPlayer.getDuration();
-//
-//                    mediaPlayer.pause();
-//                    mediaPlayer.seekTo(seekto);
-//                    mediaPlayer.start();
 
+                    case R.id.previous: {
+                        savedNumberForCursor = savedNumberForCursor - 1;
+                        startPlay();
+                    }
                     break;
                 }
-                case R.id.previous: {
-                    numberPosition = numberPosition-1;
-                    startPlay();
-//                    int seekto = mediaPlayer.getCurrentPosition() - STEP_VALUE;
-//
-//                    if (seekto < 0)
-//                        seekto = 0;
-//
-//                    mediaPlayer.pause();
-//                    mediaPlayer.seekTo(seekto);
-//                    mediaPlayer.start();
-
-                    break;
-                }
+            } else {
+                Toast.makeText(ListOfSongs.this, "Select the song", Toast.LENGTH_SHORT).show();
             }
-        }
-    };
 
-    private MediaPlayer.OnCompletionListener onCompletion = new MediaPlayer.OnCompletionListener() {
-
-        @Override
-        public void onCompletion(MediaPlayer mp) {
-            stopPlay();
         }
     };
 
