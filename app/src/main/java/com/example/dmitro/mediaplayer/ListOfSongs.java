@@ -32,7 +32,6 @@ import java.util.Locale;
 public class ListOfSongs extends AppCompatActivity {
 
     private static final int UPDATE_FREQUENCY = 500;
-    //    private static final int STEP_VALUE = 4000;
     //adapter
     private RecyclerView.LayoutManager mLayoutManager;
     private RecyclerView mRecyclerView;
@@ -252,12 +251,12 @@ public class ListOfSongs extends AppCompatActivity {
     }
 
     public class MyRecyclerAdapter extends RecyclerView.Adapter<MyRecyclerAdapter.ViewHolder> {
-        List<Information> data = Collections.emptyList();
+        List<Information> mData = Collections.emptyList();
         List<Information> cleanCopyData = Collections.emptyList();
 
         public MyRecyclerAdapter(List<Information> data) {
-            this.data = data;
-            cleanCopyData = this.data;
+            mData = data;
+            cleanCopyData = mData;
         }
 
         @Override
@@ -270,7 +269,7 @@ public class ListOfSongs extends AppCompatActivity {
 
         @Override
         public void onBindViewHolder(final ViewHolder holder, final int position) {
-            final Information current = data.get(position);
+            final Information current = mData.get(position);
             holder.title.setText(current.title);
             holder.album.setText(current.album);
             holder.artist.setText(current.artist);
@@ -299,7 +298,7 @@ public class ListOfSongs extends AppCompatActivity {
 
         @Override
         public int getItemCount() {
-            return data.size();
+            return mData.size();
         }
 
         public class ViewHolder extends RecyclerView.ViewHolder {
@@ -322,15 +321,18 @@ public class ListOfSongs extends AppCompatActivity {
 
         public void filter(String charText) {
             charText = charText.toLowerCase(Locale.getDefault());
-            data = new ArrayList<Information>();
+            mData = new ArrayList<Information>();
+
             if (charText.length() == 0) {
-                data.addAll(cleanCopyData);
+                mData.addAll(cleanCopyData);
             } else {
                 for (int i = 0; i < cleanCopyData.size(); i++) {
-                    if (arrayListTitle.get(i).toLowerCase(Locale.getDefault()).contains(charText) ||
-                            arrayListAlbum.get(i).toLowerCase(Locale.getDefault()).contains(charText) ||
-                            arrayListArtist.get(i).toLowerCase(Locale.getDefault()).contains(charText)) {
-                        data.add(cleanCopyData.get(i));
+                    final Information cleanCopyCurrent = cleanCopyData.get(i);
+
+                    if (cleanCopyCurrent.title.toLowerCase(Locale.getDefault()).contains(charText) ||
+                            cleanCopyCurrent.artist.toLowerCase(Locale.getDefault()).contains(charText) ||
+                            cleanCopyCurrent.album.toLowerCase(Locale.getDefault()).contains(charText)) {
+                        mData.add(cleanCopyData.get(i));
                     }
                 }
             }
@@ -342,7 +344,9 @@ public class ListOfSongs extends AppCompatActivity {
 
         @Override
         public void onClick(View v) {
-            if (temporaryMusikImage != null) {
+            if (titleIsPlay.equals("Not file selected")) {
+                Toast.makeText(ListOfSongs.this, "Select the song", Toast.LENGTH_SHORT).show();
+            } else {
                 switch (v.getId()) {
                     case R.id.play: {
                         if (mediaPlayer.isPlaying()) {
@@ -378,10 +382,7 @@ public class ListOfSongs extends AppCompatActivity {
                     }
                     break;
                 }
-            } else {
-                Toast.makeText(ListOfSongs.this, "Select the song", Toast.LENGTH_SHORT).show();
             }
-
         }
     };
 
