@@ -1,6 +1,9 @@
 <resources>
     <string name="app_name">Mediaplayer</string>
 
-    <string name="action_settings">Settings</string>
     <string name="menu_search">Search</string>
+    <string name="sort_title">sort for title</string>
+    <string name="sort_album">sort for album</string>
+    <string name="sort_artist">sort for artist</string>
+    <string name="sort_duration">sort for duration</string>
 </resources>

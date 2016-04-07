@@ -5,7 +5,8 @@ import java.math.BigDecimal;
 
 public class Information {
     int image;
-    int numberForCursor;
+//    int numberForCursor;
+    String path;
     String title;
     String album;
     String artist;

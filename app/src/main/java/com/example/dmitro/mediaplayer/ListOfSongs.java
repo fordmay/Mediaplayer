@@ -26,6 +26,7 @@ import java.io.IOException;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 
@@ -45,12 +46,14 @@ public class ListOfSongs extends AppCompatActivity {
     private ImageButton stopButton;
     //data for music
     private Cursor cursor;
+    private ArrayList<String> arrayListPath;
     private ArrayList<String> arrayListTitle;
     private ArrayList<String> arrayListArtist;
     private ArrayList<String> arrayListAlbum;
     private ArrayList<String> arrayListDuration;
-    private ImageButton temporaryMusikImage;
-    private int savedNumberForCursor;
+    private String pathIsPlaying;
+    private int positionItemAdapter;
+    List<Information> dataAftrerAdapt;
     //TextView for player
     private TextView titleIsPlay;
     private TextView artistIsPlay;
@@ -58,7 +61,7 @@ public class ListOfSongs extends AppCompatActivity {
     private TextView totalRunningTime;
     private TextView timePlayed;
 
-    private boolean isStarted = true;
+    //    private boolean isStarted = true;
     private boolean isMoveingSeekBar = false;
 
     private final Handler handler = new Handler();
@@ -90,6 +93,7 @@ public class ListOfSongs extends AppCompatActivity {
         seekbar.setOnSeekBarChangeListener(seekBarChanged);
 
         //ArrayList for music's data
+        arrayListPath = new ArrayList<>();
         arrayListTitle = new ArrayList<>();
         arrayListArtist = new ArrayList<>();
         arrayListAlbum = new ArrayList<>();
@@ -101,6 +105,7 @@ public class ListOfSongs extends AppCompatActivity {
         } else {
             //take parameters for the adapter
             while (cursor.isAfterLast() == false) {
+                arrayListPath.add(cursor.getString(cursor.getColumnIndex(MediaStore.Audio.Media.DATA)));
                 arrayListArtist.add(cursor.getString(cursor.getColumnIndex(MediaStore.Audio.AudioColumns.ARTIST)));
                 arrayListAlbum.add(cursor.getString(cursor.getColumnIndex(MediaStore.Audio.AudioColumns.ALBUM)));
                 arrayListTitle.add(cursor.getString(cursor.getColumnIndex(MediaStore.Audio.AudioColumns.TITLE)));
@@ -150,9 +155,8 @@ public class ListOfSongs extends AppCompatActivity {
 
             @Override
             public boolean onQueryTextChange(String query) {
-
                 mAdapter.filter(query);
-
+                mAdapter.updateAdapterList();
                 return true;
             }
         });
@@ -165,8 +169,24 @@ public class ListOfSongs extends AppCompatActivity {
         // automatically handle clicks on the Home/Up button, so long
         // as you specify a parent activity in AndroidManifest.xml.
         int id = item.getItemId();
-        if (id == R.id.action_settings) {
-
+        if (id == R.id.sort_title) {
+            mAdapter.sortTitle();
+            mAdapter.updateAdapterList();
+            return true;
+        }
+        if (id == R.id.sort_album) {
+            mAdapter.sortAlbum();
+            mAdapter.updateAdapterList();
+            return true;
+        }
+        if (id == R.id.sort_artist) {
+            mAdapter.sortArtist();
+            mAdapter.updateAdapterList();
+            return true;
+        }
+        if (id == R.id.sort_duration) {
+            mAdapter.sortDuration();
+            mAdapter.updateAdapterList();
             return true;
         }
 
@@ -185,19 +205,38 @@ public class ListOfSongs extends AppCompatActivity {
         mediaPlayer = null;
     }
 
+    //
+    private void updatePlayerPosition() {
+        dataAftrerAdapt = mAdapter.updateAdapterList();
+        boolean check = false;
+        for (int i = 0; i < dataAftrerAdapt.size(); i++) {
+            Information curentAfterAdapt = dataAftrerAdapt.get(i);
+            String path = curentAfterAdapt.path;
+            if ((path).equals(pathIsPlaying)) {
+                positionItemAdapter = i;
+                check = true;
+            }
+        }
+        if (!check) {
+            positionItemAdapter = -1;
+        }
+    }
+
     private void startPlay() {
-        titleIsPlay.setText(arrayListTitle.get(savedNumberForCursor));
-        artistIsPlay.setText(arrayListArtist.get(savedNumberForCursor));
-        albumIsPlay.setText(arrayListAlbum.get(savedNumberForCursor));
-        totalRunningTime.setText(arrayListDuration.get(savedNumberForCursor));
+        dataAftrerAdapt = mAdapter.updateAdapterList();
+        Information curentAfterAdapt = dataAftrerAdapt.get(positionItemAdapter);
+
+        titleIsPlay.setText(curentAfterAdapt.title);
+        artistIsPlay.setText(curentAfterAdapt.artist);
+        albumIsPlay.setText(curentAfterAdapt.album);
+        totalRunningTime.setText(curentAfterAdapt.duration);
+
         seekbar.setProgress(0);
-        cursor.moveToPosition(savedNumberForCursor);
         mediaPlayer.stop();
         mediaPlayer.reset();
-
+        pathIsPlaying = curentAfterAdapt.path;
         try {
-            mediaPlayer.setDataSource(cursor.getString(
-                    cursor.getColumnIndex(MediaStore.Audio.Media.DATA)));
+            mediaPlayer.setDataSource(curentAfterAdapt.path);
             mediaPlayer.prepare();
             mediaPlayer.start();
         } catch (IllegalArgumentException e) {
@@ -210,11 +249,19 @@ public class ListOfSongs extends AppCompatActivity {
 
         seekbar.setMax(mediaPlayer.getDuration());
         playButton.setImageResource(R.drawable.ic_pause_black_24dp);
+        //change adapter's images
+        for (int i = 0; i < dataAftrerAdapt.size(); i++) {
+            curentAfterAdapt = dataAftrerAdapt.get(i);
+            curentAfterAdapt.image = R.drawable.ic_play_arrow_black_24dp;
+            if ((curentAfterAdapt.path).equals(pathIsPlaying)) {
+                curentAfterAdapt.image = R.drawable.ic_pause_black_24dp;
+            }
+        }
 
         updatePosition();
         mAdapter.notifyDataSetChanged();
 
-        isStarted = true;
+//        isStarted = true;
     }
 
     private void stopPlay() {
@@ -223,8 +270,11 @@ public class ListOfSongs extends AppCompatActivity {
         playButton.setImageResource(R.drawable.ic_play_arrow_black_24dp);
         handler.removeCallbacks(updatePositionRunnable);
         seekbar.setProgress(0);
-
-        isStarted = false;
+        titleIsPlay.setText("Not file selected");
+        artistIsPlay.setText("");
+        albumIsPlay.setText("");
+        totalRunningTime.setText("00.00");
+//        isStarted = false;
     }
 
     private void updatePosition() {
@@ -239,11 +289,11 @@ public class ListOfSongs extends AppCompatActivity {
         List<Information> data = new ArrayList<>();
         for (int i = 0; i < arrayListTitle.size(); i++) {
             Information current = new Information();
+            current.path = arrayListPath.get(i);
             current.title = arrayListTitle.get(i);
             current.artist = arrayListArtist.get(i);
             current.album = arrayListAlbum.get(i);
             current.duration = arrayListDuration.get(i);
-            current.numberForCursor = i;
             current.image = R.drawable.ic_play_arrow_black_24dp;
             data.add(current);
         }
@@ -274,23 +324,11 @@ public class ListOfSongs extends AppCompatActivity {
             holder.album.setText(current.album);
             holder.artist.setText(current.artist);
             holder.duration.setText(current.duration);
-
-            if (current.numberForCursor == savedNumberForCursor && temporaryMusikImage != null) {
-                holder.image_for_list.setImageResource(R.drawable.ic_pause_black_24dp);
-            } else {
-                holder.image_for_list.setImageResource(current.image);
-            }
+            holder.image_for_list.setImageResource(current.image);
             holder.image_for_list.setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View v) {
-                    if (temporaryMusikImage != null) {
-                        temporaryMusikImage.setImageResource(R.drawable.ic_play_arrow_black_24dp);
-                    }
-                    Toast.makeText(ListOfSongs.this, "click:" + position, Toast.LENGTH_SHORT).show();
-                    holder.image_for_list.setImageResource(R.drawable.ic_pause_black_24dp);
-                    temporaryMusikImage = holder.image_for_list;
-                    savedNumberForCursor = current.numberForCursor;
-
+                    positionItemAdapter = position;
                     startPlay();
                 }
             });
@@ -319,6 +357,66 @@ public class ListOfSongs extends AppCompatActivity {
             }
         }
 
+        public void sortTitle() {
+            Collections.sort(cleanCopyData, new Comparator<Information>() {
+                @Override
+                public int compare(Information i1, Information i2) {
+                    return i1.title.compareTo(i2.title);
+                }
+            });
+            Collections.sort(mData, new Comparator<Information>() {
+                @Override
+                public int compare(Information i1, Information i2) {
+                    return i1.title.compareTo(i2.title);
+                }
+            });
+        }
+
+        public void sortAlbum() {
+            Collections.sort(cleanCopyData, new Comparator<Information>() {
+                @Override
+                public int compare(Information i1, Information i2) {
+                    return i1.album.compareTo(i2.album);
+                }
+            });
+            Collections.sort(mData, new Comparator<Information>() {
+                @Override
+                public int compare(Information i1, Information i2) {
+                    return i1.album.compareTo(i2.album);
+                }
+            });
+        }
+
+        public void sortArtist() {
+            Collections.sort(cleanCopyData, new Comparator<Information>() {
+                @Override
+                public int compare(Information i1, Information i2) {
+                    return i1.artist.compareTo(i2.artist);
+                }
+            });
+            Collections.sort(mData, new Comparator<Information>() {
+                @Override
+                public int compare(Information i1, Information i2) {
+                    return i1.artist.compareTo(i2.artist);
+                }
+            });
+        }
+
+        public void sortDuration() {
+            Collections.sort(cleanCopyData, new Comparator<Information>() {
+                @Override
+                public int compare(Information i1, Information i2) {
+                    return i1.duration.compareTo(i2.duration);
+                }
+            });
+            Collections.sort(mData, new Comparator<Information>() {
+                @Override
+                public int compare(Information i1, Information i2) {
+                    return i1.duration.compareTo(i2.duration);
+                }
+            });
+        }
+
         public void filter(String charText) {
             charText = charText.toLowerCase(Locale.getDefault());
             mData = new ArrayList<Information>();
@@ -338,6 +436,11 @@ public class ListOfSongs extends AppCompatActivity {
             }
             notifyDataSetChanged();
         }
+
+        public List<Information> updateAdapterList() {
+            notifyDataSetChanged();
+            return mData;
+        }
     }
 
     private View.OnClickListener onButtonClick = new View.OnClickListener() {
@@ -354,14 +457,13 @@ public class ListOfSongs extends AppCompatActivity {
                             mediaPlayer.pause();
                             playButton.setImageResource(R.drawable.ic_play_arrow_black_24dp);
                         } else {
-                            if (isStarted) {
-                                mediaPlayer.start();
-                                playButton.setImageResource(R.drawable.ic_pause_black_24dp);
-
-                                updatePosition();
-                            } else {
-                                startPlay();
-                            }
+//                            if (isStarted) {
+                            mediaPlayer.start();
+                            playButton.setImageResource(R.drawable.ic_pause_black_24dp);
+                            updatePosition();
+//                            } else {
+//                                startPlay();
+//                            }
                         }
                     }
                     break;
@@ -370,17 +472,33 @@ public class ListOfSongs extends AppCompatActivity {
                         stopPlay();
                     }
                     break;
+
                     case R.id.next: {
-                        savedNumberForCursor = savedNumberForCursor + 1;
-                        startPlay();
+                        updatePlayerPosition();
+                        if (positionItemAdapter == -1) {
+                            Toast.makeText(ListOfSongs.this, "Select the song", Toast.LENGTH_SHORT).show();
+                        } else if (positionItemAdapter == (dataAftrerAdapt.size() - 1)) {
+                            Toast.makeText(ListOfSongs.this, "єто последняя", Toast.LENGTH_SHORT).show();
+                        } else {
+                            positionItemAdapter = positionItemAdapter + 1;
+                            startPlay();
+                        }
                     }
                     break;
 
                     case R.id.previous: {
-                        savedNumberForCursor = savedNumberForCursor - 1;
-                        startPlay();
+                        updatePlayerPosition();
+                        if (positionItemAdapter == -1) {
+                            Toast.makeText(ListOfSongs.this, "Select the song", Toast.LENGTH_SHORT).show();
+                        } else if (positionItemAdapter == 0) {
+                            Toast.makeText(ListOfSongs.this, "єто первая", Toast.LENGTH_SHORT).show();
+                        } else {
+                            positionItemAdapter = positionItemAdapter - 1;
+                            startPlay();
+                        }
                     }
                     break;
+
                 }
             }
         }
