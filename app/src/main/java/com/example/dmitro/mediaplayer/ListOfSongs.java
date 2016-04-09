@@ -2,6 +2,7 @@ package com.example.dmitro.mediaplayer;
 
 import android.app.SearchManager;
 import android.content.Context;
+import android.content.Intent;
 import android.database.Cursor;
 import android.media.MediaPlayer;
 import android.os.Handler;
@@ -22,6 +23,7 @@ import android.widget.SeekBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import java.io.File;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.util.ArrayList;
@@ -47,13 +49,15 @@ public class ListOfSongs extends AppCompatActivity {
     //data for music
     private Cursor cursor;
     private ArrayList<String> arrayListPath;
+    private static ArrayList<String> arrayListPathFolder;
     private ArrayList<String> arrayListTitle;
     private ArrayList<String> arrayListArtist;
     private ArrayList<String> arrayListAlbum;
     private ArrayList<String> arrayListDuration;
+
     private String pathIsPlaying;
     private int positionItemAdapter;
-    List<Information> dataAftrerAdapt;
+    private List<Information> dataAftrerAdapt;
     //TextView for player
     private TextView titleIsPlay;
     private TextView artistIsPlay;
@@ -94,6 +98,7 @@ public class ListOfSongs extends AppCompatActivity {
 
         //ArrayList for music's data
         arrayListPath = new ArrayList<>();
+        arrayListPathFolder  = new ArrayList<>();
         arrayListTitle = new ArrayList<>();
         arrayListArtist = new ArrayList<>();
         arrayListAlbum = new ArrayList<>();
@@ -105,10 +110,15 @@ public class ListOfSongs extends AppCompatActivity {
         } else {
             //take parameters for the adapter
             while (cursor.isAfterLast() == false) {
-                arrayListPath.add(cursor.getString(cursor.getColumnIndex(MediaStore.Audio.Media.DATA)));
                 arrayListArtist.add(cursor.getString(cursor.getColumnIndex(MediaStore.Audio.AudioColumns.ARTIST)));
                 arrayListAlbum.add(cursor.getString(cursor.getColumnIndex(MediaStore.Audio.AudioColumns.ALBUM)));
                 arrayListTitle.add(cursor.getString(cursor.getColumnIndex(MediaStore.Audio.AudioColumns.TITLE)));
+
+                String path = cursor.getString(cursor.getColumnIndex(MediaStore.Audio.Media.DATA));
+                arrayListPath.add(path);
+                String[] segment = path.split(File.separator);
+                String pathFolder = path.substring(0, path.length() - segment[segment.length - 1].length());
+                arrayListPathFolder.add(pathFolder);
 
                 long durationInMs = Long.parseLong(cursor.getString(cursor.getColumnIndex(MediaStore.Audio.AudioColumns.DURATION)));
                 double durationInMin = ((double) durationInMs / 1000.0) / 60.0;
@@ -169,6 +179,12 @@ public class ListOfSongs extends AppCompatActivity {
         // automatically handle clicks on the Home/Up button, so long
         // as you specify a parent activity in AndroidManifest.xml.
         int id = item.getItemId();
+        if (id == R.id.open_directory) {
+            Intent intent = new Intent(this, DirectoryActivity.class);
+            intent.putExtra("arrayPath", getArrayListPathFolder());
+            startActivity(intent);
+            return true;
+        }
         if (id == R.id.sort_title) {
             mAdapter.sortTitle();
             mAdapter.updateAdapterList();
@@ -285,15 +301,20 @@ public class ListOfSongs extends AppCompatActivity {
         handler.postDelayed(updatePositionRunnable, UPDATE_FREQUENCY);
     }
 
-    public List<Information> getData() {
+    public static ArrayList<String> getArrayListPathFolder(){
+        return arrayListPathFolder;
+    }
+    private List<Information> getData() {
         List<Information> data = new ArrayList<>();
         for (int i = 0; i < arrayListTitle.size(); i++) {
             Information current = new Information();
-            current.path = arrayListPath.get(i);
+
             current.title = arrayListTitle.get(i);
             current.artist = arrayListArtist.get(i);
             current.album = arrayListAlbum.get(i);
             current.duration = arrayListDuration.get(i);
+            current.path = arrayListPath.get(i);
+            current.pathFolder = arrayListPathFolder.get(i);
             current.image = R.drawable.ic_play_arrow_black_24dp;
             data.add(current);
         }
@@ -419,7 +440,7 @@ public class ListOfSongs extends AppCompatActivity {
 
         public void filter(String charText) {
             charText = charText.toLowerCase(Locale.getDefault());
-            mData = new ArrayList<Information>();
+            mData = new ArrayList<>();
 
             if (charText.length() == 0) {
                 mData.addAll(cleanCopyData);
@@ -432,6 +453,17 @@ public class ListOfSongs extends AppCompatActivity {
                             cleanCopyCurrent.album.toLowerCase(Locale.getDefault()).contains(charText)) {
                         mData.add(cleanCopyData.get(i));
                     }
+                }
+            }
+            notifyDataSetChanged();
+        }
+
+        public void getFromDirectory(String path){
+            mData = new ArrayList<>();
+            for(int i=0;i<cleanCopyData.size();i++){
+                final Information cleanCopyCurrent = cleanCopyData.get(i);
+                if (cleanCopyCurrent.path.equals(path)){
+                    mData.add(cleanCopyData.get(i));
                 }
             }
             notifyDataSetChanged();

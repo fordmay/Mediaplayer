@@ -6,4 +6,5 @@
     <string name="sort_album">sort for album</string>
     <string name="sort_artist">sort for artist</string>
     <string name="sort_duration">sort for duration</string>
+    <string name="open_directory">open file</string>
 </resources>

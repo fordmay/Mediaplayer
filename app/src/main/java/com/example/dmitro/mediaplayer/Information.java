@@ -1,14 +1,11 @@
 package com.example.dmitro.mediaplayer;
 
-import java.math.BigDecimal;
-
-
 public class Information {
-    int image;
-//    int numberForCursor;
-    String path;
-    String title;
-    String album;
-    String artist;
-    String duration;
+    public int image;
+    public String path;
+    public String pathFolder;
+    public String title;
+    public String album;
+    public String artist;
+    public String duration;
 }
