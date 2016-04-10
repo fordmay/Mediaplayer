@@ -19,6 +19,7 @@ import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ImageButton;
+import android.widget.ImageView;
 import android.widget.SeekBar;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -39,33 +40,35 @@ public class ListOfSongs extends AppCompatActivity {
     private RecyclerView.LayoutManager mLayoutManager;
     private RecyclerView mRecyclerView;
     private MyRecyclerAdapter mAdapter;
-    //control
-    private SeekBar seekbar;
-    private MediaPlayer mediaPlayer;
-    private ImageButton playButton;
-    private ImageButton prevButton;
-    private ImageButton nextButton;
-    private ImageButton stopButton;
+
     //data for music
     private Cursor cursor;
     private ArrayList<String> arrayListPath;
-    private static ArrayList<String> arrayListPathFolder;
+    private ArrayList<String> arrayListPathFolder;
     private ArrayList<String> arrayListTitle;
     private ArrayList<String> arrayListArtist;
     private ArrayList<String> arrayListAlbum;
     private ArrayList<String> arrayListDuration;
 
-    private String pathIsPlaying;
-    private int positionItemAdapter;
-    private List<Information> dataAftrerAdapt;
     //TextView for player
     private TextView titleIsPlay;
     private TextView artistIsPlay;
     private TextView albumIsPlay;
     private TextView totalRunningTime;
     private TextView timePlayed;
+    //control for player
+    private SeekBar seekbar;
+    private MediaPlayer mediaPlayer;
+    private ImageButton playButton;
+    private ImageButton prevButton;
+    private ImageButton nextButton;
+    private ImageButton stopButton;
 
-    //    private boolean isStarted = true;
+    private String pathIsPlaying;
+    private int positionItemAdapter;
+    private List<Information> dataAftrerAdapt;
+    private boolean isStarted = true;
+    private boolean firstStart = true;
     private boolean isMoveingSeekBar = false;
 
     private final Handler handler = new Handler();
@@ -79,7 +82,7 @@ public class ListOfSongs extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_list_of_songs);
-
+        //player
         totalRunningTime = (TextView) findViewById(R.id.total_running_time);
         timePlayed = (TextView) findViewById(R.id.time_played);
         titleIsPlay = (TextView) findViewById(R.id.title_is_play);
@@ -98,7 +101,7 @@ public class ListOfSongs extends AppCompatActivity {
 
         //ArrayList for music's data
         arrayListPath = new ArrayList<>();
-        arrayListPathFolder  = new ArrayList<>();
+        arrayListPathFolder = new ArrayList<>();
         arrayListTitle = new ArrayList<>();
         arrayListArtist = new ArrayList<>();
         arrayListAlbum = new ArrayList<>();
@@ -141,7 +144,7 @@ public class ListOfSongs extends AppCompatActivity {
         mAdapter = new MyRecyclerAdapter(getData());
         mRecyclerView.setAdapter(mAdapter);
 
-        //player's buttons
+        //onClickListener for player
         playButton.setOnClickListener(onButtonClick);
         nextButton.setOnClickListener(onButtonClick);
         prevButton.setOnClickListener(onButtonClick);
@@ -152,7 +155,7 @@ public class ListOfSongs extends AppCompatActivity {
     public boolean onCreateOptionsMenu(Menu menu) {
         // Inflate the menu; this adds items to the action bar if it is present.
         getMenuInflater().inflate(R.menu.menu_list_of_songs, menu);
-
+        //add the search in ActionBar
         SearchManager searchManager = (SearchManager) getSystemService(Context.SEARCH_SERVICE);
         SearchView searchView = (SearchView) menu.findItem(R.id.menu_search).getActionView();
         searchView.setSearchableInfo(searchManager.getSearchableInfo(getComponentName()));
@@ -166,7 +169,6 @@ public class ListOfSongs extends AppCompatActivity {
             @Override
             public boolean onQueryTextChange(String query) {
                 mAdapter.filter(query);
-                mAdapter.updateAdapterList();
                 return true;
             }
         });
@@ -182,31 +184,38 @@ public class ListOfSongs extends AppCompatActivity {
         if (id == R.id.open_directory) {
             Intent intent = new Intent(this, DirectoryActivity.class);
             intent.putExtra("arrayPath", getArrayListPathFolder());
-            startActivity(intent);
+            startActivityForResult(intent, RequestCode.REQUESTCODE);
             return true;
         }
         if (id == R.id.sort_title) {
             mAdapter.sortTitle();
-            mAdapter.updateAdapterList();
             return true;
         }
         if (id == R.id.sort_album) {
             mAdapter.sortAlbum();
-            mAdapter.updateAdapterList();
             return true;
         }
         if (id == R.id.sort_artist) {
             mAdapter.sortArtist();
-            mAdapter.updateAdapterList();
             return true;
         }
         if (id == R.id.sort_duration) {
             mAdapter.sortDuration();
-            mAdapter.updateAdapterList();
             return true;
         }
 
         return super.onOptionsItemSelected(item);
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        if (resultCode == RESULT_OK) {
+            if (requestCode == RequestCode.REQUESTCODE) {
+                String path = data.getStringExtra("path");
+                mAdapter.getAllTrackFromDirectory(path);
+                Toast.makeText(ListOfSongs.this, "" + path, Toast.LENGTH_SHORT).show();
+            }
+        }
     }
 
     @Override
@@ -221,7 +230,8 @@ public class ListOfSongs extends AppCompatActivity {
         mediaPlayer = null;
     }
 
-    //
+    //find a new location track in the list after sorting or filter or...,
+    // if there is no track positionItemAdapter = -1
     private void updatePlayerPosition() {
         dataAftrerAdapt = mAdapter.updateAdapterList();
         boolean check = false;
@@ -247,12 +257,11 @@ public class ListOfSongs extends AppCompatActivity {
         albumIsPlay.setText(curentAfterAdapt.album);
         totalRunningTime.setText(curentAfterAdapt.duration);
 
-        seekbar.setProgress(0);
         mediaPlayer.stop();
         mediaPlayer.reset();
         pathIsPlaying = curentAfterAdapt.path;
         try {
-            mediaPlayer.setDataSource(curentAfterAdapt.path);
+            mediaPlayer.setDataSource(pathIsPlaying);
             mediaPlayer.prepare();
             mediaPlayer.start();
         } catch (IllegalArgumentException e) {
@@ -265,45 +274,53 @@ public class ListOfSongs extends AppCompatActivity {
 
         seekbar.setMax(mediaPlayer.getDuration());
         playButton.setImageResource(R.drawable.ic_pause_black_24dp);
-        //change adapter's images
-        for (int i = 0; i < dataAftrerAdapt.size(); i++) {
-            curentAfterAdapt = dataAftrerAdapt.get(i);
-            curentAfterAdapt.image = R.drawable.ic_play_arrow_black_24dp;
-            if ((curentAfterAdapt.path).equals(pathIsPlaying)) {
-                curentAfterAdapt.image = R.drawable.ic_pause_black_24dp;
-            }
-        }
 
+        mAdapter.setImage();
         updatePosition();
-        mAdapter.notifyDataSetChanged();
-
-//        isStarted = true;
+        isStarted = true;
+        firstStart = false;
     }
-
+    //stop player
     private void stopPlay() {
         mediaPlayer.stop();
         mediaPlayer.reset();
+
         playButton.setImageResource(R.drawable.ic_play_arrow_black_24dp);
         handler.removeCallbacks(updatePositionRunnable);
         seekbar.setProgress(0);
-        titleIsPlay.setText("Not file selected");
-        artistIsPlay.setText("");
-        albumIsPlay.setText("");
-        totalRunningTime.setText("00.00");
-//        isStarted = false;
+        timePlayed.setText("00.00");
+        isStarted = false;
     }
-
+    //update position SeekBar and play time
     private void updatePosition() {
         handler.removeCallbacks(updatePositionRunnable);
-
         seekbar.setProgress(mediaPlayer.getCurrentPosition());
 
-        handler.postDelayed(updatePositionRunnable, UPDATE_FREQUENCY);
-    }
+        long durationInMs = mediaPlayer.getCurrentPosition();
+        double durationInMin = ((double) durationInMs / 1000.0) / 60.0;
+        durationInMin = new BigDecimal(Double.toString(durationInMin)).setScale(2, BigDecimal.ROUND_UP).doubleValue();
+        timePlayed.setText("" + durationInMin);
 
-    public static ArrayList<String> getArrayListPathFolder(){
+        handler.postDelayed(updatePositionRunnable, UPDATE_FREQUENCY);
+        //next track
+        if (mediaPlayer.getCurrentPosition() == mediaPlayer.getDuration()) {
+            updatePlayerPosition();
+            if (positionItemAdapter == -1) {
+                positionItemAdapter = 0;
+                startPlay();
+            }else if (positionItemAdapter == (dataAftrerAdapt.size() - 1)) {
+                stopPlay();
+            } else {
+                positionItemAdapter = positionItemAdapter+1;
+                startPlay();
+            }
+        }
+    }
+    //get arrayListPathFolder
+    public ArrayList<String> getArrayListPathFolder() {
         return arrayListPathFolder;
     }
+    //get data for adapter
     private List<Information> getData() {
         List<Information> data = new ArrayList<>();
         for (int i = 0; i < arrayListTitle.size(); i++) {
@@ -314,20 +331,23 @@ public class ListOfSongs extends AppCompatActivity {
             current.album = arrayListAlbum.get(i);
             current.duration = arrayListDuration.get(i);
             current.path = arrayListPath.get(i);
-            current.pathFolder = arrayListPathFolder.get(i);
             current.image = R.drawable.ic_play_arrow_black_24dp;
+            current.pathFolder = arrayListPathFolder.get(i);
             data.add(current);
         }
         return data;
     }
 
+    //class Adapter
     public class MyRecyclerAdapter extends RecyclerView.Adapter<MyRecyclerAdapter.ViewHolder> {
         List<Information> mData = Collections.emptyList();
-        List<Information> cleanCopyData = Collections.emptyList();
+        List<Information> copyDataForFilterSort = Collections.emptyList();
+        List<Information> cleanData = Collections.emptyList();
 
         public MyRecyclerAdapter(List<Information> data) {
             mData = data;
-            cleanCopyData = mData;
+            copyDataForFilterSort = mData;
+            cleanData = mData;
         }
 
         @Override
@@ -346,13 +366,6 @@ public class ListOfSongs extends AppCompatActivity {
             holder.artist.setText(current.artist);
             holder.duration.setText(current.duration);
             holder.image_for_list.setImageResource(current.image);
-            holder.image_for_list.setOnClickListener(new View.OnClickListener() {
-                @Override
-                public void onClick(View v) {
-                    positionItemAdapter = position;
-                    startPlay();
-                }
-            });
         }
 
         @Override
@@ -360,26 +373,33 @@ public class ListOfSongs extends AppCompatActivity {
             return mData.size();
         }
 
-        public class ViewHolder extends RecyclerView.ViewHolder {
+        public class ViewHolder extends RecyclerView.ViewHolder implements View.OnClickListener {
             TextView title;
             TextView album;
             TextView artist;
             TextView duration;
-            ImageButton image_for_list;
+            ImageView image_for_list;
 
             public ViewHolder(View vItem) {
                 super(vItem);
+                vItem.setOnClickListener(this);
                 album = (TextView) vItem.findViewById(R.id.album);
                 artist = (TextView) vItem.findViewById(R.id.artist);
                 duration = (TextView) vItem.findViewById(R.id.duration);
                 title = (TextView) vItem.findViewById(R.id.title);
-                image_for_list = (ImageButton) vItem.findViewById(R.id.image_for_list);
+                image_for_list = (ImageView) vItem.findViewById(R.id.image_for_list);
 
+            }
+
+            @Override
+            public void onClick(View v) {
+                positionItemAdapter = getPosition();
+                startPlay();
             }
         }
 
         public void sortTitle() {
-            Collections.sort(cleanCopyData, new Comparator<Information>() {
+            Collections.sort(copyDataForFilterSort, new Comparator<Information>() {
                 @Override
                 public int compare(Information i1, Information i2) {
                     return i1.title.compareTo(i2.title);
@@ -391,10 +411,11 @@ public class ListOfSongs extends AppCompatActivity {
                     return i1.title.compareTo(i2.title);
                 }
             });
+            notifyDataSetChanged();
         }
 
         public void sortAlbum() {
-            Collections.sort(cleanCopyData, new Comparator<Information>() {
+            Collections.sort(copyDataForFilterSort, new Comparator<Information>() {
                 @Override
                 public int compare(Information i1, Information i2) {
                     return i1.album.compareTo(i2.album);
@@ -406,10 +427,11 @@ public class ListOfSongs extends AppCompatActivity {
                     return i1.album.compareTo(i2.album);
                 }
             });
+            notifyDataSetChanged();
         }
 
         public void sortArtist() {
-            Collections.sort(cleanCopyData, new Comparator<Information>() {
+            Collections.sort(copyDataForFilterSort, new Comparator<Information>() {
                 @Override
                 public int compare(Information i1, Information i2) {
                     return i1.artist.compareTo(i2.artist);
@@ -421,10 +443,11 @@ public class ListOfSongs extends AppCompatActivity {
                     return i1.artist.compareTo(i2.artist);
                 }
             });
+            notifyDataSetChanged();
         }
 
         public void sortDuration() {
-            Collections.sort(cleanCopyData, new Comparator<Information>() {
+            Collections.sort(copyDataForFilterSort, new Comparator<Information>() {
                 @Override
                 public int compare(Information i1, Information i2) {
                     return i1.duration.compareTo(i2.duration);
@@ -436,6 +459,7 @@ public class ListOfSongs extends AppCompatActivity {
                     return i1.duration.compareTo(i2.duration);
                 }
             });
+            notifyDataSetChanged();
         }
 
         public void filter(String charText) {
@@ -443,35 +467,53 @@ public class ListOfSongs extends AppCompatActivity {
             mData = new ArrayList<>();
 
             if (charText.length() == 0) {
-                mData.addAll(cleanCopyData);
+                mData.addAll(copyDataForFilterSort);
             } else {
-                for (int i = 0; i < cleanCopyData.size(); i++) {
-                    final Information cleanCopyCurrent = cleanCopyData.get(i);
+                for (int i = 0; i < copyDataForFilterSort.size(); i++) {
+                    final Information copyCurrent = copyDataForFilterSort.get(i);
 
-                    if (cleanCopyCurrent.title.toLowerCase(Locale.getDefault()).contains(charText) ||
-                            cleanCopyCurrent.artist.toLowerCase(Locale.getDefault()).contains(charText) ||
-                            cleanCopyCurrent.album.toLowerCase(Locale.getDefault()).contains(charText)) {
-                        mData.add(cleanCopyData.get(i));
+                    if (copyCurrent.title.toLowerCase(Locale.getDefault()).contains(charText) ||
+                            copyCurrent.artist.toLowerCase(Locale.getDefault()).contains(charText) ||
+                            copyCurrent.album.toLowerCase(Locale.getDefault()).contains(charText)) {
+                        mData.add(copyDataForFilterSort.get(i));
                     }
                 }
             }
-            notifyDataSetChanged();
+            setImage();
         }
 
-        public void getFromDirectory(String path){
-            mData = new ArrayList<>();
-            for(int i=0;i<cleanCopyData.size();i++){
-                final Information cleanCopyCurrent = cleanCopyData.get(i);
-                if (cleanCopyCurrent.path.equals(path)){
-                    mData.add(cleanCopyData.get(i));
+        public void getAllTrackFromDirectory(String path) {
+            if ("All Phone Tracks".equals(path)) {
+                mData = cleanData;
+                copyDataForFilterSort = cleanData;
+            } else {
+                mData = new ArrayList<>();
+                for (int i = 0; i < cleanData.size(); i++) {
+                    final Information cleanCopyCurrent = cleanData.get(i);
+                    if (cleanCopyCurrent.pathFolder.equals(path)) {
+                        mData.add(cleanData.get(i));
+                    }
                 }
+                copyDataForFilterSort = mData;
             }
-            notifyDataSetChanged();
+            setImage();
         }
 
         public List<Information> updateAdapterList() {
             notifyDataSetChanged();
             return mData;
+        }
+
+        //set correct image and update adapter
+        public void setImage() {
+            for (int i = 0; i < mData.size(); i++) {
+                final Information current = mData.get(i);
+                current.image = R.drawable.ic_play_arrow_black_24dp;
+                if ((current.path).equals(pathIsPlaying)) {
+                    current.image = R.drawable.ic_pause_black_24dp;
+                }
+            }
+            notifyDataSetChanged();
         }
     }
 
@@ -479,59 +521,75 @@ public class ListOfSongs extends AppCompatActivity {
 
         @Override
         public void onClick(View v) {
-            if (titleIsPlay.equals("Not file selected")) {
-                Toast.makeText(ListOfSongs.this, "Select the song", Toast.LENGTH_SHORT).show();
-            } else {
-                switch (v.getId()) {
-                    case R.id.play: {
-                        if (mediaPlayer.isPlaying()) {
-                            handler.removeCallbacks(updatePositionRunnable);
-                            mediaPlayer.pause();
-                            playButton.setImageResource(R.drawable.ic_play_arrow_black_24dp);
-                        } else {
-//                            if (isStarted) {
+            switch (v.getId()) {
+                case R.id.play: {
+                    if (mediaPlayer.isPlaying()) {
+                        //pause
+                        handler.removeCallbacks(updatePositionRunnable);
+                        mediaPlayer.pause();
+                        playButton.setImageResource(R.drawable.ic_play_arrow_black_24dp);
+                    } else {
+                        if (firstStart) {
+                            positionItemAdapter = 0;
+                            startPlay();
+                        } else if (isStarted) {
+                            //after pause
                             mediaPlayer.start();
                             playButton.setImageResource(R.drawable.ic_pause_black_24dp);
                             updatePosition();
-//                            } else {
-//                                startPlay();
-//                            }
-                        }
-                    }
-                    break;
-
-                    case R.id.stop: {
-                        stopPlay();
-                    }
-                    break;
-
-                    case R.id.next: {
-                        updatePlayerPosition();
-                        if (positionItemAdapter == -1) {
-                            Toast.makeText(ListOfSongs.this, "Select the song", Toast.LENGTH_SHORT).show();
-                        } else if (positionItemAdapter == (dataAftrerAdapt.size() - 1)) {
-                            Toast.makeText(ListOfSongs.this, "єто последняя", Toast.LENGTH_SHORT).show();
                         } else {
-                            positionItemAdapter = positionItemAdapter + 1;
-                            startPlay();
+                            //after stop
+                            try {
+                                mediaPlayer.setDataSource(pathIsPlaying);
+                                mediaPlayer.prepare();
+                                mediaPlayer.start();
+                            } catch (IllegalArgumentException e) {
+                                e.printStackTrace();
+                            } catch (IllegalStateException e) {
+                                e.printStackTrace();
+                            } catch (IOException e) {
+                                e.printStackTrace();
+                            }
+                            playButton.setImageResource(R.drawable.ic_pause_black_24dp);
+                            updatePosition();
+                            isStarted = true;
                         }
                     }
-                    break;
-
-                    case R.id.previous: {
-                        updatePlayerPosition();
-                        if (positionItemAdapter == -1) {
-                            Toast.makeText(ListOfSongs.this, "Select the song", Toast.LENGTH_SHORT).show();
-                        } else if (positionItemAdapter == 0) {
-                            Toast.makeText(ListOfSongs.this, "єто первая", Toast.LENGTH_SHORT).show();
-                        } else {
-                            positionItemAdapter = positionItemAdapter - 1;
-                            startPlay();
-                        }
-                    }
-                    break;
-
                 }
+                break;
+
+                case R.id.stop: {
+                    stopPlay();
+                }
+                break;
+
+                case R.id.next: {
+                    updatePlayerPosition();
+                    //check for playing the songs in the adapter list
+                    if (positionItemAdapter == -1) {
+                        Toast.makeText(ListOfSongs.this, "Select the song", Toast.LENGTH_SHORT).show();
+                    } else if (positionItemAdapter == (dataAftrerAdapt.size() - 1)) {
+                        Toast.makeText(ListOfSongs.this, "The last track", Toast.LENGTH_SHORT).show();
+                    } else {
+                        positionItemAdapter = positionItemAdapter + 1;
+                        startPlay();
+                    }
+                }
+                break;
+
+                case R.id.previous: {
+                    updatePlayerPosition();
+                    //check for playing the songs in the adapter list
+                    if (positionItemAdapter == -1) {
+                        Toast.makeText(ListOfSongs.this, "Select the song", Toast.LENGTH_SHORT).show();
+                    } else if (positionItemAdapter == 0) {
+                        Toast.makeText(ListOfSongs.this, "The first track", Toast.LENGTH_SHORT).show();
+                    } else {
+                        positionItemAdapter = positionItemAdapter - 1;
+                        startPlay();
+                    }
+                }
+                break;
             }
         }
     };
@@ -540,11 +598,10 @@ public class ListOfSongs extends AppCompatActivity {
 
         @Override
         public boolean onError(MediaPlayer mp, int what, int extra) {
-
             return false;
         }
     };
-
+//use SeekBar
     private SeekBar.OnSeekBarChangeListener seekBarChanged = new SeekBar.OnSeekBarChangeListener() {
         @Override
         public void onStopTrackingTouch(SeekBar seekBar) {
@@ -560,7 +617,6 @@ public class ListOfSongs extends AppCompatActivity {
         public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
             if (isMoveingSeekBar) {
                 mediaPlayer.seekTo(progress);
-
                 Log.i("OnSeekBarChangeListener", "onProgressChanged");
             }
         }
