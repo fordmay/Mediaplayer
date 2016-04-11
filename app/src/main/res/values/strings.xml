@@ -2,9 +2,9 @@
     <string name="app_name">Mediaplayer</string>
 
     <string name="menu_search">Search</string>
-    <string name="sort_title">sort for title</string>
-    <string name="sort_album">sort for album</string>
-    <string name="sort_artist">sort for artist</string>
-    <string name="sort_duration">sort for duration</string>
+    <string name="sort_title">sort by title</string>
+    <string name="sort_album">sort by album</string>
+    <string name="sort_artist">sort by artist</string>
+    <string name="sort_duration">sort by duration</string>
     <string name="open_directory">open file</string>
 </resources>

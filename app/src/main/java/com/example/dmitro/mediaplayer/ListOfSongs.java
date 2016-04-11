@@ -5,6 +5,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.database.Cursor;
 import android.media.MediaPlayer;
+import android.net.Uri;
 import android.os.Handler;
 import android.provider.MediaStore;
 import android.os.Bundle;
@@ -42,7 +43,6 @@ public class ListOfSongs extends AppCompatActivity {
     private MyRecyclerAdapter mAdapter;
 
     //data for music
-    private Cursor cursor;
     private ArrayList<String> arrayListPath;
     private ArrayList<String> arrayListPathFolder;
     private ArrayList<String> arrayListTitle;
@@ -82,6 +82,7 @@ public class ListOfSongs extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_list_of_songs);
+
         //player
         totalRunningTime = (TextView) findViewById(R.id.total_running_time);
         timePlayed = (TextView) findViewById(R.id.time_played);
@@ -106,31 +107,8 @@ public class ListOfSongs extends AppCompatActivity {
         arrayListArtist = new ArrayList<>();
         arrayListAlbum = new ArrayList<>();
         arrayListDuration = new ArrayList<>();
-        //take all the audio files on the system
-        cursor = getContentResolver().query(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, null, null, null, null);
-        if (cursor == null) {
-        } else if (!cursor.moveToFirst()) {
-        } else {
-            //take parameters for the adapter
-            while (cursor.isAfterLast() == false) {
-                arrayListArtist.add(cursor.getString(cursor.getColumnIndex(MediaStore.Audio.AudioColumns.ARTIST)));
-                arrayListAlbum.add(cursor.getString(cursor.getColumnIndex(MediaStore.Audio.AudioColumns.ALBUM)));
-                arrayListTitle.add(cursor.getString(cursor.getColumnIndex(MediaStore.Audio.AudioColumns.TITLE)));
 
-                String path = cursor.getString(cursor.getColumnIndex(MediaStore.Audio.Media.DATA));
-                arrayListPath.add(path);
-                String[] segment = path.split(File.separator);
-                String pathFolder = path.substring(0, path.length() - segment[segment.length - 1].length());
-                arrayListPathFolder.add(pathFolder);
-
-                long durationInMs = Long.parseLong(cursor.getString(cursor.getColumnIndex(MediaStore.Audio.AudioColumns.DURATION)));
-                double durationInMin = ((double) durationInMs / 1000.0) / 60.0;
-                durationInMin = new BigDecimal(Double.toString(durationInMin)).setScale(2, BigDecimal.ROUND_UP).doubleValue();
-                arrayListDuration.add("" + durationInMin);
-
-                cursor.moveToNext();
-            }
-        }
+        getAllTracksFromSystem();
 
         // adapter
         mRecyclerView = (RecyclerView) findViewById(R.id.list);
@@ -149,6 +127,16 @@ public class ListOfSongs extends AppCompatActivity {
         nextButton.setOnClickListener(onButtonClick);
         prevButton.setOnClickListener(onButtonClick);
         stopButton.setOnClickListener(onButtonClick);
+
+        if (getIntent().getData() != null) {//check if intent is not null
+            Uri data = getIntent().getData();//set a variable for the Intent
+            String realPathFromURI = getRealPathFromURI(this, data);//get path from uri
+            mAdapter.setTrack(realPathFromURI);
+
+            positionItemAdapter = 0;//first track
+            startPlay();
+            firstStart = false;
+        }
     }
 
     @Override
@@ -209,6 +197,7 @@ public class ListOfSongs extends AppCompatActivity {
 
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        //take chosen path folder and add in adapter
         if (resultCode == RESULT_OK) {
             if (requestCode == RequestCode.REQUESTCODE) {
                 String path = data.getStringExtra("path");
@@ -228,6 +217,56 @@ public class ListOfSongs extends AppCompatActivity {
         mediaPlayer.release();
 
         mediaPlayer = null;
+    }
+
+    public void getAllTracksFromSystem() {
+        //get all the audio files from the system
+        Cursor cursor = null;
+        try {
+            cursor = getContentResolver().query(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, null, null, null, null);
+            if (cursor == null) {
+            } else if (!cursor.moveToFirst()) {
+            } else {
+                //set parameters in ArrayList
+                while (cursor.isAfterLast() == false) {
+                    arrayListArtist.add(cursor.getString(cursor.getColumnIndex(MediaStore.Audio.AudioColumns.ARTIST)));
+                    arrayListAlbum.add(cursor.getString(cursor.getColumnIndex(MediaStore.Audio.AudioColumns.ALBUM)));
+                    arrayListTitle.add(cursor.getString(cursor.getColumnIndex(MediaStore.Audio.AudioColumns.TITLE)));
+
+                    String path = cursor.getString(cursor.getColumnIndex(MediaStore.Audio.Media.DATA));
+                    arrayListPath.add(path);
+                    String[] segment = path.split(File.separator);
+                    String pathFolder = path.substring(0, path.length() - segment[segment.length - 1].length());
+                    arrayListPathFolder.add(pathFolder);
+
+                    long durationInMs = Long.parseLong(cursor.getString(cursor.getColumnIndex(MediaStore.Audio.AudioColumns.DURATION)));
+                    double durationInMin = ((double) durationInMs / 1000.0) / 60.0;
+                    durationInMin = new BigDecimal(Double.toString(durationInMin)).setScale(2, BigDecimal.ROUND_UP).doubleValue();
+                    arrayListDuration.add("" + durationInMin);
+
+                    cursor.moveToNext();
+                }
+            }
+        } finally {
+            if (cursor != null) {
+                cursor.close();
+            }
+        }
+    }
+
+    public String getRealPathFromURI(Context context, Uri contentUri) {
+        Cursor cursor = null;
+        try {
+            String[] proj = {MediaStore.Images.Media.DATA};
+            cursor = context.getContentResolver().query(contentUri, proj, null, null, null);
+            int column_index = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.DATA);
+            cursor.moveToFirst();
+            return cursor.getString(column_index);
+        } finally {
+            if (cursor != null) {
+                cursor.close();
+            }
+        }
     }
 
     //find a new location track in the list after sorting or filter or...,
@@ -280,6 +319,7 @@ public class ListOfSongs extends AppCompatActivity {
         isStarted = true;
         firstStart = false;
     }
+
     //stop player
     private void stopPlay() {
         mediaPlayer.stop();
@@ -291,6 +331,7 @@ public class ListOfSongs extends AppCompatActivity {
         timePlayed.setText("00.00");
         isStarted = false;
     }
+
     //update position SeekBar and play time
     private void updatePosition() {
         handler.removeCallbacks(updatePositionRunnable);
@@ -308,18 +349,20 @@ public class ListOfSongs extends AppCompatActivity {
             if (positionItemAdapter == -1) {
                 positionItemAdapter = 0;
                 startPlay();
-            }else if (positionItemAdapter == (dataAftrerAdapt.size() - 1)) {
+            } else if (positionItemAdapter == (dataAftrerAdapt.size() - 1)) {
                 stopPlay();
             } else {
-                positionItemAdapter = positionItemAdapter+1;
+                positionItemAdapter = positionItemAdapter + 1;
                 startPlay();
             }
         }
     }
+
     //get arrayListPathFolder
     public ArrayList<String> getArrayListPathFolder() {
         return arrayListPathFolder;
     }
+
     //get data for adapter
     private List<Information> getData() {
         List<Information> data = new ArrayList<>();
@@ -482,15 +525,16 @@ public class ListOfSongs extends AppCompatActivity {
             setImage();
         }
 
-        public void getAllTrackFromDirectory(String path) {
-            if ("All Phone Tracks".equals(path)) {
+        //set all tracks with correct folder path
+        public void getAllTrackFromDirectory(String pathTracksFolder) {
+            if ("All Phone Tracks".equals(pathTracksFolder)) {
                 mData = cleanData;
                 copyDataForFilterSort = cleanData;
             } else {
                 mData = new ArrayList<>();
                 for (int i = 0; i < cleanData.size(); i++) {
                     final Information cleanCopyCurrent = cleanData.get(i);
-                    if (cleanCopyCurrent.pathFolder.equals(path)) {
+                    if (cleanCopyCurrent.pathFolder.equals(pathTracksFolder)) {
                         mData.add(cleanData.get(i));
                     }
                 }
@@ -515,8 +559,22 @@ public class ListOfSongs extends AppCompatActivity {
             }
             notifyDataSetChanged();
         }
+
+        //set correct track from intent-filter
+        public void setTrack(String path) {
+            mData = new ArrayList<>();
+            for (int i = 0; i < cleanData.size(); i++) {
+                final Information cleanCopyCurrent = cleanData.get(i);
+                if (cleanCopyCurrent.path.equals(path)) {
+                    mData.add(cleanData.get(i));
+                }
+            }
+            copyDataForFilterSort = mData;
+            setImage();
+        }
     }
 
+    //click listener for m.player's buttons
     private View.OnClickListener onButtonClick = new View.OnClickListener() {
 
         @Override
@@ -565,7 +623,7 @@ public class ListOfSongs extends AppCompatActivity {
 
                 case R.id.next: {
                     updatePlayerPosition();
-                    //check for playing the songs in the adapter list
+                    //check for playing track in the adapter list
                     if (positionItemAdapter == -1) {
                         Toast.makeText(ListOfSongs.this, "Select the song", Toast.LENGTH_SHORT).show();
                     } else if (positionItemAdapter == (dataAftrerAdapt.size() - 1)) {
@@ -579,7 +637,7 @@ public class ListOfSongs extends AppCompatActivity {
 
                 case R.id.previous: {
                     updatePlayerPosition();
-                    //check for playing the songs in the adapter list
+                    //check for playing track in the adapter list
                     if (positionItemAdapter == -1) {
                         Toast.makeText(ListOfSongs.this, "Select the song", Toast.LENGTH_SHORT).show();
                     } else if (positionItemAdapter == 0) {
@@ -601,7 +659,7 @@ public class ListOfSongs extends AppCompatActivity {
             return false;
         }
     };
-//use SeekBar
+    //use SeekBar
     private SeekBar.OnSeekBarChangeListener seekBarChanged = new SeekBar.OnSeekBarChangeListener() {
         @Override
         public void onStopTrackingTouch(SeekBar seekBar) {
